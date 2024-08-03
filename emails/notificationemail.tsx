@@ -16,6 +16,8 @@ import { URL } from 'url';
   }
   
   export default function notificationemail({ username, url }: VerificationEmailProps) {
+    // console.log("success1");
+    
     return (
       <Html lang="en" dir="ltr">
         <Head>

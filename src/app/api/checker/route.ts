@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { promises as fs } from 'fs';
-import path from 'path';
 import fetch from 'node-fetch';
-import { sendNotificationEmail } from "@/app/helpers/sendNotificationEmail";
+import dbConnect from "@/lib/dbConnect";
+import { sendNotificationEmail } from "@/helpers/sendNotificationEmail";
+import DataModel from "@/model/data";
 
 
 async function fetchHtml(url: string): Promise<string> {
@@ -20,40 +20,72 @@ async function fetchHtml(url: string): Promise<string> {
 }
 
 export async function GET(req:Request){
-    const filePath = path.join(process.cwd(), 'public', 'site.txt');
+    await dbConnect()
+    const curr=(await fetchHtml('https://exam.dtu.ac.in/result.htm')).trim();
     
     // Read the file content
-    const prev = await fs.readFile(filePath, 'utf8');
-    const curr=await fetchHtml('https://exam.dtu.ac.in/result.htm');
-    
+    const prev_data = await DataModel.findOne({
+        id:'https://exam.dtu.ac.in/result.htm',
+    })
 
-    if(prev==curr){
-        return NextResponse.json(
-            {
-                message:"No changes",
-            },{status:200}
-        )
-    }else{
-        await fs.writeFile(filePath, curr, 'utf8');
-        const email=['riturajbharti99@gmail.com']
-        const username=['Rituraj Bharti']
+    if(prev_data){
+        
+        const prev=prev_data.data;
+        
+        if(prev==curr){
+            return NextResponse.json(
+                {
+                    message:"No changes",
+                },{status:200}
+            )
+        }else{
+            // console.log(prev.length);
+            // console.log(curr.length);
+            
+            prev_data.data=curr.trim()
+            await prev_data.save()
+            // console.log("hi1");
 
-        for(let i=0;i<email.length;i++){
-            const emailResponse=await sendNotificationEmail(
-                email[i],
-                username[i]
+           
+
+            const email=['riturajbharti99@gmail.com']
+            const username=['Rituraj Bharti']
+
+            for(let i=0;i<email.length;i++){
+                const emailResponse=await sendNotificationEmail(
+                    email[i],
+                    username[i]
+                )
+                // console.log(emailResponse);
+                
+                if(!emailResponse.success){
+                    return NextResponse.json({
+                        message:`Could Not Send Mail to ${username[i]} !!`
+                    },{status:500})
+                }
+            }
+            
+            return NextResponse.json(
+                {
+                    message:"Changes Saved and Email Sent",
+                },{status:200}
             )
 
-            if(!emailResponse.success){
-                return NextResponse.json({
-                    message:`Could Not Send Mail to ${username[i]} !!`
-                },{status:500})
+
             }
-        }
-        
+
+
+    }else{
+        const newData= new DataModel({
+            id:'https://exam.dtu.ac.in/result.htm',
+            data:curr
+        })
+
+        await newData.save()
+
         return NextResponse.json(
             {
-                message:"Changes Saved and Email Sent",
+                message:"Database Initialised",
             },{status:200}
         )
     }
